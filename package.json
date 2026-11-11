@@ -1,0 +1,283 @@
+{
+  "name": "phabreview",
+  "displayName": "Phabricator Review",
+  "description": "Review Phabricator revisions inside VS Code with full LSP navigation: highlighted changes, descriptions, inline comments and review actions.",
+  "version": "0.1.0",
+  "publisher": "christian",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "workspaceContains:.arcconfig",
+    "onCommand:phabreview.openRevision"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "phabreview",
+          "title": "Phabricator",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "phabreview": [
+        {
+          "id": "phabreview.revisions",
+          "name": "Revisions"
+        },
+        {
+          "id": "phabreview.active",
+          "name": "Active Revision",
+          "type": "webview",
+          "when": "phabreview.hasRevision"
+        },
+        {
+          "id": "phabreview.changes",
+          "name": "Changes",
+          "when": "phabreview.hasRevision"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "phabreview.changes",
+        "contents": "Check out the revision to review its changes with full language support.\n[Check Out](command:phabreview.checkout)",
+        "when": "phabreview.hasRevision && !phabreview.checkedOut"
+      }
+    ],
+    "commands": [
+      {
+        "command": "phabreview.openRevision",
+        "title": "Open Revision…",
+        "category": "Phabricator",
+        "icon": "$(search)"
+      },
+      {
+        "command": "phabreview.openDescription",
+        "title": "Open Overview",
+        "category": "Phabricator",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "phabreview.refresh",
+        "title": "Refresh",
+        "category": "Phabricator",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "phabreview.checkout",
+        "title": "Check Out Revision",
+        "category": "Phabricator",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "phabreview.exitReviewMode",
+        "title": "Exit Review Mode",
+        "category": "Phabricator",
+        "icon": "$(close)"
+      },
+      {
+        "command": "phabreview.openFile",
+        "title": "Open File",
+        "category": "Phabricator"
+      },
+      {
+        "command": "phabreview.openDiff",
+        "title": "Open Diff",
+        "category": "Phabricator",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "phabreview.nextChange",
+        "title": "Next Change",
+        "category": "Phabricator",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "phabreview.prevChange",
+        "title": "Previous Change",
+        "category": "Phabricator",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "phabreview.submitReview",
+        "title": "Submit Review…",
+        "category": "Phabricator",
+        "icon": "$(check)"
+      },
+      {
+        "command": "phabreview.openInBrowser",
+        "title": "Open in Browser",
+        "category": "Phabricator",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "phabreview.createComment",
+        "title": "Add Review Comment",
+        "enablement": "!commentIsEmpty"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "phabreview.openRevision",
+          "when": "view == phabreview.revisions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "phabreview.refresh",
+          "when": "view == phabreview.revisions || view == phabreview.changes",
+          "group": "navigation@9"
+        },
+        {
+          "command": "phabreview.openDescription",
+          "when": "view == phabreview.active || view == phabreview.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "phabreview.checkout",
+          "when": "view == phabreview.changes && !phabreview.checkedOut",
+          "group": "navigation@2"
+        },
+        {
+          "command": "phabreview.exitReviewMode",
+          "when": "view == phabreview.changes && phabreview.checkedOut",
+          "group": "navigation@2"
+        },
+        {
+          "command": "phabreview.submitReview",
+          "when": "view == phabreview.changes",
+          "group": "navigation@3"
+        },
+        {
+          "command": "phabreview.openInBrowser",
+          "when": "view == phabreview.changes",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "phabreview.checkout",
+          "when": "view == phabreview.revisions && viewItem =~ /^revision/",
+          "group": "inline@1"
+        },
+        {
+          "command": "phabreview.openInBrowser",
+          "when": "view == phabreview.revisions && viewItem =~ /^revision/",
+          "group": "inline@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "phabreview.openDiff",
+          "when": "phabreview.checkedOut && resourceScheme == file && !isInDiffEditor",
+          "group": "navigation@1"
+        },
+        {
+          "command": "phabreview.prevChange",
+          "when": "phabreview.checkedOut && resourceScheme == file",
+          "group": "navigation@2"
+        },
+        {
+          "command": "phabreview.nextChange",
+          "when": "phabreview.checkedOut && resourceScheme == file",
+          "group": "navigation@3"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "phabreview.createComment",
+          "when": "commentController == phabreview",
+          "group": "inline@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "phabreview.openFile",
+          "when": "false"
+        },
+        {
+          "command": "phabreview.createComment",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "phabreview.nextChange",
+        "key": "alt+f5",
+        "when": "editorTextFocus && phabreview.checkedOut"
+      },
+      {
+        "command": "phabreview.prevChange",
+        "key": "shift+alt+f5",
+        "when": "editorTextFocus && phabreview.checkedOut"
+      }
+    ],
+    "configuration": {
+      "title": "Phabricator Review",
+      "properties": {
+        "phabreview.host": {
+          "type": "string",
+          "default": "",
+          "description": "Phabricator base URL. Leave empty to read phabricator.uri from the repository's .arcconfig."
+        },
+        "phabreview.branchPrefix": {
+          "type": "string",
+          "default": "phabreview/",
+          "description": "Prefix of the local git branches created when checking out a revision diff."
+        },
+        "phabreview.fileListLayout": {
+          "type": "string",
+          "enum": [
+            "tree",
+            "flat"
+          ],
+          "default": "tree",
+          "description": "Show changed files as a directory tree or a flat list."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "phabreview.addedLineBackground",
+        "description": "Background of lines added by the revision",
+        "defaults": {
+          "dark": "#2ea04326",
+          "light": "#aceebb66",
+          "highContrast": "#2ea04340"
+        }
+      },
+      {
+        "id": "phabreview.removedLineMarker",
+        "description": "Marker shown where the revision removed lines",
+        "defaults": {
+          "dark": "#f85149",
+          "light": "#cf222e",
+          "highContrast": "#f85149"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "tsc -p ./ && node --test out/test/*.test.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.4.0"
+  },
+  "icon": "media/phabricator.png"
+}
