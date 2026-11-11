@@ -295,7 +295,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.2.0",
+    "@vscode/vsce": "^4.1.0",
     "typescript": "^5.4.0"
   },
   "icon": "media/phabricator.png"
