@@ -1,7 +1,8 @@
 name: Publish
 
 # Manual: publishes the version currently in package.json to the VS Code
-# Marketplace. Requires the VSCE_PAT repository secret.
+# Marketplace and Open VSX. Requires the VSCE_PAT and OVSX_PAT repository
+# secrets.
 on:
   workflow_dispatch:
 
@@ -19,6 +20,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npx vsce publish --no-dependencies
+      - run: npx vsce package --no-dependencies -o phorge-review.vsix
+      - name: Publish to VS Code Marketplace
+        run: npx vsce publish --packagePath phorge-review.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish to Open VSX
+        run: npx ovsx publish phorge-review.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
