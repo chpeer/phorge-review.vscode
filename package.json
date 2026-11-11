@@ -1,17 +1,36 @@
 {
-  "name": "phabreview",
-  "displayName": "Phabricator Review",
+  "name": "phorge-review",
+  "displayName": "Phorge (Phabricator) Code Review",
   "description": "Review Phabricator revisions inside VS Code with full LSP navigation: highlighted changes, descriptions, inline comments and review actions.",
   "version": "0.1.0",
-  "publisher": "christian",
-  "license": "MIT",
-  "private": true,
+  "publisher": "chpeer",
+  "license": "Apache 2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chpeer/phorge-review.vscode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chpeer/phorge-review.vscode/issues"
+  },
+  "homepage": "https://github.com/chpeer/phorge-review.vscode#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "SCM Providers"
   ],
+  "keywords": [
+    "phabricator",
+    "phorge",
+    "code review",
+    "differential",
+    "arcanist",
+    "conduit"
+  ],
+  "galleryBanner": {
+    "color": "#3a4a6b",
+    "theme": "dark"
+  },
   "activationEvents": [
     "workspaceContains:.arcconfig",
     "onCommand:phabreview.openRevision"
