@@ -2,9 +2,9 @@
   "name": "phorge-review",
   "displayName": "Phorge (Phabricator) Code Review",
   "description": "Review Phabricator revisions inside VS Code with full LSP navigation: highlighted changes, descriptions, inline comments and review actions.",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "chpeer",
-  "license": "Apache 2",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/chpeer/phorge-review.vscode.git"

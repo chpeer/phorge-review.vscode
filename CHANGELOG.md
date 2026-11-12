@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.0.0] - 2026-11-12
+### Changed
+- New sidebar icon: a disc with the cogwheel cut out, so it no longer looks like a settings icon
+- Add screenshots and a compatibility note to the README
+- Use the SPDX licence identifier `Apache-2.0`
+
 ## [0.1.0] - 2026-11-11
 ### Added
 - Initial release
