@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/chpeer/phorge-review.vscode#readme",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.145.0"
   },
   "categories": [
     "SCM Providers"
