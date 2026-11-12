@@ -1,18 +1,26 @@
 # Phabricator Review for VS Code
 
+<p>
+  <img src="media/checkout.png" alt="Revision overview with the Check Out button" width="49%">
+  <img src="media/review.png" alt="Reviewing a diff with an inline comment" width="49%">
+</p>
+
 Review Phabricator revisions in VS Code. The extension checks the diff out onto
 a local branch, so you review real files with go to definition, find references
 and everything else your language server offers. Besides this, you can also
 view and add inline comments and send them to Phabricator.
+
+## Compatibility
+
+Built and tested against [Phorge](https://phorge.it). Other Phabricator installs
+that expose the stock Conduit API may work, but Mozilla's customised fork
+hasn't been tested.
 
 ## Setup
 
 You need a Conduit token in `~/.arcrc` (`arc install-certificate`) and a
 repository whose `.arcconfig` sets `phabricator.uri`. If it doesn't, set
 `phabreview.host`.
-
-Install the extension with `code --install-extension phabreview-0.1.0.vsix`, or
-use `Install from VSIX` in the Extensions view.
 
 ## Reviewing a revision
 
@@ -46,6 +54,7 @@ These come from what the stock Conduit API supports.
 
 ```sh
 npm install
+npm run compile  # compile
 npm test         # compile and run the unit tests
 npm run package  # build the .vsix
 ```

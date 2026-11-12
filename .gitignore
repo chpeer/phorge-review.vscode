@@ -1,3 +1,5 @@
 node_modules/
 out/
 plz-out/
+*.vsix
+.DS_Store

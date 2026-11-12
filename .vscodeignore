@@ -7,3 +7,5 @@ tsconfig.json
 *.vsix
 plz-out/**
 .github/**
+media/checkout.png
+media/review.png
