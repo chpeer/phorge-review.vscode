@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.1] - 2026-11-23
+### Fixed
+- User avatars now load. Phabricator only serves uploaded files to logged-in browser sessions, so profile pictures are now downloaded via Conduit
+- The diff editor no longer shows duplicate previous/next change buttons
+
 ## [1.0.0] - 2026-11-12
 ### Changed
 - New sidebar icon: a disc with the cogwheel cut out, so it no longer looks like a settings icon
