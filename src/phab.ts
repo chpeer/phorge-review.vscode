@@ -197,6 +197,7 @@ export class Phabricator {
 
   async whoami(): Promise<User> {
     const me = await this.conduit.call<User>('user.whoami', {});
+    me.image = await this.inlineImage(me.image);
     this.users.set(me.phid, me);
     return me;
   }
@@ -325,11 +326,27 @@ export class Phabricator {
     const missing = [...new Set(phids)].filter((p) => p.startsWith('PHID-USER-') && !this.users.has(p));
     if (missing.length > 0) {
       const result = await this.conduit.call<Array<{ phid: string; userName: string; realName: string; image: string }>>('user.query', { phids: missing });
-      for (const u of result) {
-        this.users.set(u.phid, { phid: u.phid, userName: u.userName, realName: u.realName, image: u.image });
-      }
+      const images = await Promise.all(result.map((u) => this.inlineImage(u.image)));
+      result.forEach((u, i) => this.users.set(u.phid, { phid: u.phid, userName: u.userName, realName: u.realName, image: images[i] }));
     }
     return this.users;
+  }
+
+  /**
+   * Uploaded files (/file/data/...) are only served to logged-in browser sessions, which webviews do not have,
+   * so profile pictures are downloaded via Conduit and inlined. Built-in default avatars (/res/...) are public.
+   */
+  private async inlineImage(url: string | undefined): Promise<string | undefined> {
+    const phid = url?.match(/PHID-FILE-[a-z0-9]+/)?.[0];
+    if (!phid) {
+      return url;
+    }
+    try {
+      // Chromium sniffs the actual image format, so the declared type does not have to match.
+      return `data:image/png;base64,${await this.conduit.call<string>('file.download', { phid })}`;
+    } catch {
+      return undefined; // Unloadable URL; the overview falls back to the user's initial.
+    }
   }
 
   user(phid: string): User | undefined {
