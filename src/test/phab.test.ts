@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Conduit } from '../conduit';
-import { Phabricator, parseRevisionID } from '../phab';
+import { Phabricator, parseRevisionID, type User } from '../phab';
 
 describe('parseRevisionID', () => {
   it('AcceptsRevisionNamesBareNumbersAndUrls', () => {
@@ -35,10 +35,11 @@ describe('Phabricator.resolveUsers', () => {
 
     const resolved = await new Phabricator(conduit).resolveUsers(users.map((u) => u.phid));
 
-    assert.deepEqual(resolved, new Map([
+    const expected = new Map<string, User>([
       ['PHID-USER-alice', { ...users[0], image: 'data:image/png;base64,YWxpY2U=' }],
       ['PHID-USER-bob', users[1]],
       ['PHID-USER-carol', { ...users[2], image: undefined }],
-    ]));
+    ]);
+    assert.deepEqual(resolved, expected);
   });
 });
