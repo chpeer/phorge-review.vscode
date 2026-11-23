@@ -21,8 +21,7 @@ export class ConduitError extends Error {
 }
 
 export class Conduit {
-  /** `log` receives one line per call with its duration, for finding slow requests. */
-  constructor(private readonly config: ConduitConfig, private readonly log: (line: string) => void = () => {}) {}
+  constructor(private readonly config: ConduitConfig) {}
 
   get host(): string {
     return this.config.host;
@@ -34,24 +33,15 @@ export class Conduit {
       output: 'json',
       __conduit__: '1',
     });
-    const start = Date.now();
-    let text: string;
-    try {
-      const res = await fetch(`${this.config.host}api/${method}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      if (!res.ok) {
-        throw new ConduitError('HTTP', `${method}: HTTP ${res.status} ${res.statusText}`);
-      }
-      text = await res.text();
-    } catch (err) {
-      this.log(`${method} failed after ${Date.now() - start} ms: ${(err as Error).message}`);
-      throw err;
+    const res = await fetch(`${this.config.host}api/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    if (!res.ok) {
+      throw new ConduitError('HTTP', `${method}: HTTP ${res.status} ${res.statusText}`);
     }
-    this.log(`${method} ${Date.now() - start} ms, ${(text.length / 1024).toFixed(1)} KB`);
-    const envelope = JSON.parse(text) as ConduitEnvelope<T>;
+    const envelope = (await res.json()) as ConduitEnvelope<T>;
     if (envelope.error_code) {
       throw new ConduitError(envelope.error_code, envelope.error_info ?? envelope.error_code);
     }

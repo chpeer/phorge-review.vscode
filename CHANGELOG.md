@@ -1,9 +1,6 @@
 # Change Log
 
 ## [1.0.1] - 2026-11-23
-### Added
-- "Phabricator Review" output channel that logs the duration and size of every Conduit call
-
 ### Changed
 - Revision lists load much faster (about 3 s instead of 12 s for "Waiting For My Review"): they filter on revision status instead of Phabricator's slow built-in "active" query, and no longer wait for profile pictures
 - "Waiting For My Review" and "Reviewed By Me" only list revisions that need review or are accepted; drafts and revisions with changes planned or requested wait for the author and are hidden

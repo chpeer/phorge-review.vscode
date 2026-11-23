@@ -21,11 +21,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void vscode.window.showErrorMessage(`Phabricator Review: no workspace folder is inside a git repository (${folders.map((f) => f.uri.fsPath).join(', ')})`);
     return;
   }
-  const log = vscode.window.createOutputChannel('Phabricator Review', { log: true });
-  context.subscriptions.push(log);
   let phab: Phabricator;
   try {
-    const conduit = new Conduit(resolveConduitConfig(git.root, config.get<string>('host', '')), (line) => log.info(line));
+    const conduit = new Conduit(resolveConduitConfig(git.root, config.get<string>('host', '')));
     phab = new Phabricator(conduit, vscode.Uri.joinPath(context.globalStorageUri, 'avatars').fsPath);
   } catch (err) {
     void vscode.window.showErrorMessage(`Phabricator Review: ${(err as Error).message}`);
