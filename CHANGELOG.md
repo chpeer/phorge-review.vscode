@@ -5,6 +5,7 @@
 - Revision lists load much faster (about 3 s instead of 12 s for "Waiting For My Review"): they filter on revision status instead of Phabricator's slow built-in "active" query, and no longer wait for profile pictures
 - Opening a revision is faster: the diff is fetched from the revision already known from the list, in parallel with the revision itself and its comments
 - Profile pictures are cached on disk and downloaded only once
+- Require VS Code 1.146 or newer (`engines.vscode` is now `^1.146.0`)
 
 ### Fixed
 - User avatars now load. Phabricator only serves uploaded files to logged-in browser sessions, so profile pictures are now downloaded via Conduit
