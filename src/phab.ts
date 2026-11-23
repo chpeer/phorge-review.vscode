@@ -158,6 +158,14 @@ interface QueryDiffRecord {
   }>;
 }
 
+/**
+ * Open revision statuses. Filtering on these is much faster than the built-in 'active' queryKey, which also
+ * matches revisions the viewer is responsible for via projects and owners packages (12 s vs 2 s on our install).
+ */
+const OPEN_STATUSES = ['needs-review', 'needs-revision', 'accepted', 'changes-planned', 'draft'];
+/** Open statuses where the next step is a review; drafts, planned and requested changes wait for the author. */
+const REVIEWABLE_STATUSES = ['needs-review', 'accepted'];
+
 const TIMELINE_TYPES = ['comment', 'accept', 'reject', 'request-changes', 'request-review', 'update', 'plan-changes', 'abandon', 'close', 'commandeer', 'resign', 'reclaim', 'reviewers'];
 
 function toRevision(record: RevisionRecord): Revision {
@@ -202,9 +210,8 @@ export class Phabricator {
     return me;
   }
 
-  private async searchRevisions(constraints: Record<string, unknown>, queryKey?: string, limit = 50): Promise<Revision[]> {
+  private async searchRevisions(constraints: Record<string, unknown>, limit = 50): Promise<Revision[]> {
     const result = await this.conduit.call<SearchResult<RevisionRecord>>('differential.revision.search', {
-      queryKey,
       constraints,
       attachments: { reviewers: true },
       order: 'updated',
@@ -223,12 +230,12 @@ export class Phabricator {
 
   /** Active revisions where the user is a direct reviewer (not only via an owners package or project). */
   async revisionsToReview(mePHID: string): Promise<Revision[]> {
-    const all = await this.searchRevisions({ reviewerPHIDs: [mePHID] }, 'active', 100);
+    const all = await this.searchRevisions({ reviewerPHIDs: [mePHID], statuses: REVIEWABLE_STATUSES }, 100);
     return all.filter((r) => r.reviewers.some((x) => x.phid === mePHID));
   }
 
   revisionsAuthored(mePHID: string): Promise<Revision[]> {
-    return this.searchRevisions({ authorPHIDs: [mePHID] }, 'active');
+    return this.searchRevisions({ authorPHIDs: [mePHID], statuses: OPEN_STATUSES });
   }
 
   async diff(diffPHID: string): Promise<Diff> {
