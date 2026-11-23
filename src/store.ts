@@ -63,10 +63,18 @@ export class ReviewStore {
   }
 
   async open(revisionID: number): Promise<void> {
-    const revision = await this.phab.revision(revisionID);
-    const [diff, { inlines, timeline }] = await Promise.all([this.phab.diff(revision.diffPHID), this.phab.transactions(revisionID)]);
+    // Start on the diff of the revision known from a list right away; it is only kept if the fresh revision still points to it.
+    const fresh = this.phab.revision(revisionID);
+    const known = this.phab.knownRevision(revisionID);
+    const [revision, knownDiff, { inlines, timeline }] = await Promise.all([
+      fresh,
+      (known ? Promise.resolve(known) : fresh).then((r) => this.phab.diff(r.diffPHID)),
+      this.phab.transactions(revisionID),
+    ]);
+    const diff = knownDiff.phid === revision.diffPHID ? knownDiff : await this.phab.diff(revision.diffPHID);
     const phids = [revision.authorPHID, ...revision.reviewers.map((r) => r.phid), ...inlines.flatMap((i) => i.comments.map((c) => c.authorPHID)), ...timeline.map((t) => t.authorPHID)];
     await this.phab.resolveUsers(phids);
+    await this.phab.loadAvatars(this.me ? [...phids, this.me.phid] : phids);
     this.active = { revision, diff, inlines, timeline };
     await this.prunePublishedPending(revisionID, inlines);
     await this.state.update('activeRevisionID', revisionID);

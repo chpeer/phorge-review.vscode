@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Conduit } from './conduit';
 import { Hunk } from './diffParse';
 
@@ -158,6 +160,14 @@ interface QueryDiffRecord {
   }>;
 }
 
+/**
+ * Open revision statuses. Filtering on these is much faster than the built-in 'active' queryKey, which also
+ * matches revisions the viewer is responsible for via projects and owners packages (12 s vs 2 s on our install).
+ */
+const OPEN_STATUSES = ['needs-review', 'needs-revision', 'accepted', 'changes-planned', 'draft'];
+/** Open statuses where the next step is a review; drafts, planned and requested changes wait for the author. */
+const REVIEWABLE_STATUSES = ['needs-review', 'accepted'];
+
 const TIMELINE_TYPES = ['comment', 'accept', 'reject', 'request-changes', 'request-review', 'update', 'plan-changes', 'abandon', 'close', 'commandeer', 'resign', 'reclaim', 'reviewers'];
 
 function toRevision(record: RevisionRecord): Revision {
@@ -188,28 +198,46 @@ function toRevision(record: RevisionRecord): Revision {
 
 export class Phabricator {
   private readonly users = new Map<string, User>();
+  /** Profile picture URL per user; `User.image` is only set once loadAvatars has inlined it. */
+  private readonly imageURLs = new Map<string, string>();
+  /** Last fetched copy of each revision, possibly outdated. */
+  private readonly revisions = new Map<number, Revision>();
 
-  constructor(readonly conduit: Conduit) {}
+  /** `avatarDir` caches downloaded profile pictures across sessions. */
+  constructor(readonly conduit: Conduit, private readonly avatarDir?: string) {}
 
   get host(): string {
     return this.conduit.host;
   }
 
   async whoami(): Promise<User> {
-    const me = await this.conduit.call<User>('user.whoami', {});
-    this.users.set(me.phid, me);
+    const { image, ...me } = await this.conduit.call<User>('user.whoami', {});
+    this.addUser(me, image);
     return me;
   }
 
-  private async searchRevisions(constraints: Record<string, unknown>, queryKey?: string, limit = 50): Promise<Revision[]> {
+  private addUser(user: User, imageURL: string | undefined): void {
+    this.users.set(user.phid, user);
+    if (imageURL) {
+      this.imageURLs.set(user.phid, imageURL);
+    }
+  }
+
+  private async searchRevisions(constraints: Record<string, unknown>, limit = 50): Promise<Revision[]> {
     const result = await this.conduit.call<SearchResult<RevisionRecord>>('differential.revision.search', {
-      queryKey,
       constraints,
       attachments: { reviewers: true },
       order: 'updated',
       limit,
     });
-    return result.data.map(toRevision);
+    const revisions = result.data.map(toRevision);
+    revisions.forEach((r) => this.revisions.set(r.id, r));
+    return revisions;
+  }
+
+  /** Revision as last fetched, e.g. by a list query, without asking Conduit; it may be outdated. */
+  knownRevision(id: number): Revision | undefined {
+    return this.revisions.get(id);
   }
 
   async revision(id: number): Promise<Revision> {
@@ -222,12 +250,12 @@ export class Phabricator {
 
   /** Active revisions where the user is a direct reviewer (not only via an owners package or project). */
   async revisionsToReview(mePHID: string): Promise<Revision[]> {
-    const all = await this.searchRevisions({ reviewerPHIDs: [mePHID] }, 'active', 100);
+    const all = await this.searchRevisions({ reviewerPHIDs: [mePHID], statuses: REVIEWABLE_STATUSES }, 100);
     return all.filter((r) => r.reviewers.some((x) => x.phid === mePHID));
   }
 
   revisionsAuthored(mePHID: string): Promise<Revision[]> {
-    return this.searchRevisions({ authorPHIDs: [mePHID] }, 'active');
+    return this.searchRevisions({ authorPHIDs: [mePHID], statuses: OPEN_STATUSES });
   }
 
   async diff(diffPHID: string): Promise<Diff> {
@@ -321,15 +349,55 @@ export class Phabricator {
     return { inlines, timeline };
   }
 
+  /** Loads user names; call loadAvatars as well where profile pictures are shown. */
   async resolveUsers(phids: Iterable<string>): Promise<Map<string, User>> {
     const missing = [...new Set(phids)].filter((p) => p.startsWith('PHID-USER-') && !this.users.has(p));
     if (missing.length > 0) {
       const result = await this.conduit.call<Array<{ phid: string; userName: string; realName: string; image: string }>>('user.query', { phids: missing });
-      for (const u of result) {
-        this.users.set(u.phid, { phid: u.phid, userName: u.userName, realName: u.realName, image: u.image });
-      }
+      result.forEach((u) => this.addUser({ phid: u.phid, userName: u.userName, realName: u.realName }, u.image));
     }
     return this.users;
+  }
+
+  /** Sets `User.image` for users already loaded by resolveUsers or whoami. */
+  async loadAvatars(phids: Iterable<string>): Promise<void> {
+    await Promise.all(
+      [...new Set(phids)].map(async (phid) => {
+        const user = this.users.get(phid);
+        const url = this.imageURLs.get(phid);
+        if (user && url && user.image === undefined) {
+          user.image = await this.inlineImage(url);
+        }
+      }),
+    );
+  }
+
+  /**
+   * Uploaded files (/file/data/...) are only served to logged-in browser sessions, which webviews do not have,
+   * so profile pictures are downloaded via Conduit and inlined. Built-in default avatars (/res/...) are public.
+   */
+  private async inlineImage(url: string): Promise<string | undefined> {
+    const phid = url.match(/PHID-FILE-[a-z0-9]+/)?.[0];
+    if (!phid) {
+      return url;
+    }
+    // Chromium sniffs the actual image format, so the declared type does not have to match.
+    const dataURI = (base64: string) => `data:image/png;base64,${base64}`;
+    // Files never change, so a picture downloaded once is valid forever; a new picture gets a new file PHID.
+    const dir = this.avatarDir;
+    const cached = dir ? await fs.promises.readFile(path.join(dir, phid), 'utf8').catch(() => undefined) : undefined;
+    if (cached) {
+      return dataURI(cached);
+    }
+    try {
+      const base64 = await this.conduit.call<string>('file.download', { phid });
+      if (dir) {
+        await fs.promises.mkdir(dir, { recursive: true }).then(() => fs.promises.writeFile(path.join(dir, phid), base64)).catch(() => undefined);
+      }
+      return dataURI(base64);
+    } catch {
+      return undefined; // Unloadable URL; the overview falls back to the user's initial.
+    }
   }
 
   user(phid: string): User | undefined {

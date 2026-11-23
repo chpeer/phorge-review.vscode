@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.1.0] - 2026-11-23
+### Changed
+- Revision lists load much faster (about 3 s instead of 12 s for "Waiting For My Review"): they filter on revision status instead of Phabricator's slow built-in "active" query, and no longer wait for profile pictures
+- Opening a revision is faster: the diff is fetched from the revision already known from the list, in parallel with the revision itself and its comments
+- Profile pictures are cached on disk and downloaded only once
+
+### Fixed
+- User avatars now load. Phabricator only serves uploaded files to logged-in browser sessions, so profile pictures are now downloaded via Conduit
+- The diff editor no longer shows duplicate previous/next change buttons
+
 ## [1.0.0] - 2026-11-12
 ### Changed
 - New sidebar icon: a disc with the cogwheel cut out, so it no longer looks like a settings icon
