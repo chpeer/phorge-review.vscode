@@ -25,7 +25,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(log);
   let phab: Phabricator;
   try {
-    phab = new Phabricator(new Conduit(resolveConduitConfig(git.root, config.get<string>('host', '')), (line) => log.info(line)));
+    const conduit = new Conduit(resolveConduitConfig(git.root, config.get<string>('host', '')), (line) => log.info(line));
+    phab = new Phabricator(conduit, vscode.Uri.joinPath(context.globalStorageUri, 'avatars').fsPath);
   } catch (err) {
     void vscode.window.showErrorMessage(`Phabricator Review: ${(err as Error).message}`);
     return;

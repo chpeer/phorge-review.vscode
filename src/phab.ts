@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Conduit } from './conduit';
 import { Hunk } from './diffParse';
 
@@ -196,18 +198,29 @@ function toRevision(record: RevisionRecord): Revision {
 
 export class Phabricator {
   private readonly users = new Map<string, User>();
+  /** Profile picture URL per user; `User.image` is only set once loadAvatars has inlined it. */
+  private readonly imageURLs = new Map<string, string>();
+  /** Last fetched copy of each revision, possibly outdated. */
+  private readonly revisions = new Map<number, Revision>();
 
-  constructor(readonly conduit: Conduit) {}
+  /** `avatarDir` caches downloaded profile pictures across sessions. */
+  constructor(readonly conduit: Conduit, private readonly avatarDir?: string) {}
 
   get host(): string {
     return this.conduit.host;
   }
 
   async whoami(): Promise<User> {
-    const me = await this.conduit.call<User>('user.whoami', {});
-    me.image = await this.inlineImage(me.image);
-    this.users.set(me.phid, me);
+    const { image, ...me } = await this.conduit.call<User>('user.whoami', {});
+    this.addUser(me, image);
     return me;
+  }
+
+  private addUser(user: User, imageURL: string | undefined): void {
+    this.users.set(user.phid, user);
+    if (imageURL) {
+      this.imageURLs.set(user.phid, imageURL);
+    }
   }
 
   private async searchRevisions(constraints: Record<string, unknown>, limit = 50): Promise<Revision[]> {
@@ -217,7 +230,14 @@ export class Phabricator {
       order: 'updated',
       limit,
     });
-    return result.data.map(toRevision);
+    const revisions = result.data.map(toRevision);
+    revisions.forEach((r) => this.revisions.set(r.id, r));
+    return revisions;
+  }
+
+  /** Revision as last fetched, e.g. by a list query, without asking Conduit; it may be outdated. */
+  knownRevision(id: number): Revision | undefined {
+    return this.revisions.get(id);
   }
 
   async revision(id: number): Promise<Revision> {
@@ -329,28 +349,52 @@ export class Phabricator {
     return { inlines, timeline };
   }
 
+  /** Loads user names; call loadAvatars as well where profile pictures are shown. */
   async resolveUsers(phids: Iterable<string>): Promise<Map<string, User>> {
     const missing = [...new Set(phids)].filter((p) => p.startsWith('PHID-USER-') && !this.users.has(p));
     if (missing.length > 0) {
       const result = await this.conduit.call<Array<{ phid: string; userName: string; realName: string; image: string }>>('user.query', { phids: missing });
-      const images = await Promise.all(result.map((u) => this.inlineImage(u.image)));
-      result.forEach((u, i) => this.users.set(u.phid, { phid: u.phid, userName: u.userName, realName: u.realName, image: images[i] }));
+      result.forEach((u) => this.addUser({ phid: u.phid, userName: u.userName, realName: u.realName }, u.image));
     }
     return this.users;
+  }
+
+  /** Sets `User.image` for users already loaded by resolveUsers or whoami. */
+  async loadAvatars(phids: Iterable<string>): Promise<void> {
+    await Promise.all(
+      [...new Set(phids)].map(async (phid) => {
+        const user = this.users.get(phid);
+        const url = this.imageURLs.get(phid);
+        if (user && url && user.image === undefined) {
+          user.image = await this.inlineImage(url);
+        }
+      }),
+    );
   }
 
   /**
    * Uploaded files (/file/data/...) are only served to logged-in browser sessions, which webviews do not have,
    * so profile pictures are downloaded via Conduit and inlined. Built-in default avatars (/res/...) are public.
    */
-  private async inlineImage(url: string | undefined): Promise<string | undefined> {
-    const phid = url?.match(/PHID-FILE-[a-z0-9]+/)?.[0];
+  private async inlineImage(url: string): Promise<string | undefined> {
+    const phid = url.match(/PHID-FILE-[a-z0-9]+/)?.[0];
     if (!phid) {
       return url;
     }
+    // Chromium sniffs the actual image format, so the declared type does not have to match.
+    const dataURI = (base64: string) => `data:image/png;base64,${base64}`;
+    // Files never change, so a picture downloaded once is valid forever; a new picture gets a new file PHID.
+    const dir = this.avatarDir;
+    const cached = dir ? await fs.promises.readFile(path.join(dir, phid), 'utf8').catch(() => undefined) : undefined;
+    if (cached) {
+      return dataURI(cached);
+    }
     try {
-      // Chromium sniffs the actual image format, so the declared type does not have to match.
-      return `data:image/png;base64,${await this.conduit.call<string>('file.download', { phid })}`;
+      const base64 = await this.conduit.call<string>('file.download', { phid });
+      if (dir) {
+        await fs.promises.mkdir(dir, { recursive: true }).then(() => fs.promises.writeFile(path.join(dir, phid), base64)).catch(() => undefined);
+      }
+      return dataURI(base64);
     } catch {
       return undefined; // Unloadable URL; the overview falls back to the user's initial.
     }
